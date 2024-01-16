@@ -32,7 +32,7 @@ The following rules and restrictions apply for **numeric** case statements:
 The ELSE clause has been re-introduced even though it is not part of the Oberon-07 language definition. This was done mainly for backward compatibility reasons. In general, we recommend using the ELSE clause only in well-justified cases, for example if the index range far exceeds the label range. But even in that case, one should first try to find a representation using explicit case label ranges, as shown in the example below (which assumes an index range of 0..255).
 
      CASE i OF                                     CASE i OF
-       | 1:  S1                                      | 1:  S1
+         1:  S1                                        1:  S1
        | 3:  S3                                      | 3:  S3
        | 7:  S7            is the same as            | 7:  S7           
        | 9:  S9                                      | 9:  S9

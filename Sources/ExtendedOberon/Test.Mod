@@ -1,4 +1,4 @@
-MODULE Test;
+MODULE Test;  (*AP 13.12.24*)
   IMPORT Texts, Oberon;
 
   TYPE R = RECORD a: INTEGER END ;
@@ -76,47 +76,53 @@ MODULE Test;
 BEGIN Texts.OpenWriter(W); NEW(p); NEW(q); NEW(p0); NEW(p1); NEW(p2); NEW(p3)
 END Test.
 
+ORP.Compile ORG.Mod/s ORP.Mod/s ~  # compile the new compiler
+System.Free ORP ORG ORB ORS ~      # unload the old one
+
 ORP.Compile Test.Mod/s ~
 System.Free Test ~
 
 ORTool.DecObj Test.rsc ~
 
------------------ num ---------------
+THE FOLLOWING ARE THE RESULTS FOR THE DEFAULT VERSION (ORG.Mod and ORP.Mod):
+============================================================================
+  
+----------------- CaseNum (numeric selector) ---------------
 
-Test.CaseNum 0     Test.CaseNum 1       # outside the case label ranges  --> TRAP  (or 66 if the ELSE clause is uncommented)
-Test.CaseNum 2     Test.CaseNum 5       # range 2..5    -->  11
-Test.CaseNum  8    Test.CaseNum 10      # range  8..10  -->  22
-Test.CaseNum 13    Test.CaseNum 15      # range 13..15  -->  33
-Test.CaseNum 18    Test.CaseNum 22      # range 18..22  -->  44
-Test.CaseNum 33    Test.CaseNum 36      # range 33..36  -->  55
+Test.CaseNum 0     Test.CaseNum 1       # TRAP --> outside the case label ranges  (result becomes 66 if the ELSE clause is uncommented)
+Test.CaseNum 2     Test.CaseNum 5       # 11   --> range 2..5
+Test.CaseNum  8    Test.CaseNum 10      # 22   --> range  8..10
+Test.CaseNum 13    Test.CaseNum 15      # 33   --> range 13..15
+Test.CaseNum 18    Test.CaseNum 22      # 44   --> range 18..22
+Test.CaseNum 33    Test.CaseNum 36      # 55   --> range 33..36
 
-Test.CaseNum 11    Test.CaseNum 17      # outside the case label ranges  --> TRAP  (or 66 if the ELSE clause is uncommented)
-Test.CaseNum 23    Test.CaseNum 32      # outside the case label ranges  --> TRAP  (or 66 if the ELSE clause is uncommented)
-Test.CaseNum 99    Test.CaseNum 255     # outside the case label ranges  --> TRAP  (or 66 if the ELSE clause is uncommented)
+Test.CaseNum 11    Test.CaseNum 17      # TRAP --> outside the case label ranges  (result becomes 66 if the ELSE clause is uncommented)
+Test.CaseNum 23    Test.CaseNum 32      # TRAP --> outside the case label ranges  (result becomes 66 if the ELSE clause is uncommented)
+Test.CaseNum 99    Test.CaseNum 255     # TRAP --> outside the case label ranges  (result becomes 66 if the ELSE clause is uncommented)
 
-Test.CaseNum -99   Test.CaseNum -1      # outside the case label ranges  --> TRAP  (or 66 if the ELSE clause is uncommented)
-Test.CaseNum 256   Test.CaseNum 1000    # outside the case label ranges  --> TRAP  (or 66 if the ELSE clause is uncommented)
+Test.CaseNum -99   Test.CaseNum -1      # TRAP --> outside the case label ranges  (result becomes 66 if the ELSE clause is uncommented)
+Test.CaseNum 256   Test.CaseNum 1000    # TRAP --> outside the case label ranges  (result becomes 66 if the ELSE clause is uncommented)
 
------------------ char ---------------
+----------------- ChaseChar (char selector) ---------------
 
-Test.CaseChar A    Test.CaseChar C      # outside the case label ranges  --> TRAP  (or 66 if the ELSE clause is uncommented)
-Test.CaseChar D    Test.CaseChar F      # range D..F  -->  22
-Test.CaseChar J    Test.CaseChar M      # range J..M  -->  33
-Test.CaseChar f    Test.CaseChar h      # range f..h  -->  44
-Test.CaseChar b    Test.CaseChar c      # range b..c  -->  44
-Test.CaseChar r    Test.CaseChar u      # range r..u  -->  55
-Test.CaseChar e    Test.CaseChar m      # range e, x  -->  55
+Test.CaseChar A    Test.CaseChar C      # TRAP --> outside the case label ranges  (result becomes 66 if the ELSE clause is uncommented)
+Test.CaseChar D    Test.CaseChar F      # 22   --> range D..F
+Test.CaseChar J    Test.CaseChar M      # 33   --> range J..M
+Test.CaseChar f    Test.CaseChar h      # 44   --> range f..h
+Test.CaseChar b    Test.CaseChar c      # 44   --> range b..c
+Test.CaseChar r    Test.CaseChar u      # 55   --> range r..u
+Test.CaseChar e    Test.CaseChar m      # 55   --> range e, x
 
-Test.CaseChar H    Test.CaseChar Y      # outside the case label ranges  --> TRAP  (or 66 if the ELSE clause is uncommented)
-Test.CaseChar "["  Test.CaseChar "^"    # outside the case label ranges  --> TRAP  (or 66 if the ELSE clause is uncommented)
-Test.CaseChar a    Test.CaseChar p      # outside the case label ranges  --> TRAP  (or 66 if the ELSE clause is uncommented)
-Test.CaseChar v    Test.CaseChar z      # outside the case label ranges  --> TRAP  (or 66 if the ELSE clause is uncommented)
+Test.CaseChar H    Test.CaseChar Y      # TRAP --> outside the case label ranges  (result becomes 66 if the ELSE clause is uncommented)
+Test.CaseChar "["  Test.CaseChar "^"    # TRAP --> outside the case label ranges  (result becomes 66 if the ELSE clause is uncommented)
+Test.CaseChar a    Test.CaseChar p      # TRAP --> outside the case label ranges  (result becomes 66 if the ELSE clause is uncommented)
+Test.CaseChar v    Test.CaseChar z      # TRAP --> outside the case label ranges  (result becomes 66 if the ELSE clause is uncommented)
 
------------------ type ---------------
+----------------- CaseType (type selector) ---------------
 
-Test.CaseType -1       # no extension  -->   0  (or 66 if the ELSE clause is uncommented)
-Test.CaseType  0       # P0            -->  22
-Test.CaseType  1       # P1            -->  33
-Test.CaseType  2       # P2            -->  44
-Test.CaseType  3       # P3            -->  55
-Test.CaseType  4       # no extension  -->   0  (or 66 if the ELSE clause is uncommented)
+Test.CaseType -1       #  0   --> no extension  (result becomes 66 if the ELSE clause is uncommented)
+Test.CaseType  0       # 22   --> P0
+Test.CaseType  1       # 33   --> P1
+Test.CaseType  2       # 44   --> P2
+Test.CaseType  3       # 55   --> P3
+Test.CaseType  4       #  0   --> no extension  (result 66 if the ELSE clause is uncommented)

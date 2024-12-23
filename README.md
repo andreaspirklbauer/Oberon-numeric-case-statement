@@ -41,11 +41,7 @@ The ELSE clause has been re-introduced even though it is not part of the Oberon-
 
 The implementation cost of adding the numeric CASE statement is **~65** lines of source code (*ORG* ~25, *ORP* ~40).
 
-**Implementations:**
-
-Several variants were implemented and tested. We recommend version A (=implemented in Extended Oberon)
-
-**A. Default version** (source files *ORG.Mod* and *ORP.Mod*) **= recommended variant**
+**Implementation details:**
 
 * Jump tables are addressed relative to the program counter (PC), and the branch offset when selecting the component statement is computed at **compile** time.
 
@@ -59,9 +55,15 @@ Several variants were implemented and tested. We recommend version A (=implement
 
 * If the index value does not correspond to any case label, a trap is generated **unless** an ELSE clause is present.
 
-In this variant, the index range for case expressions of integer type is MIN(INTEGER) .. MAX(INTEGER) and therefore far exceeds the case label range (0 .. 255). It is the only variant where using an ELSE clause *may* be justified. But as outlined above, even in that case one should first try to express a numeric case statement using explicit case label ranges.
+In this implementation, the index range for case expressions of integer type is MIN(INTEGER) .. MAX(INTEGER) and therefore far exceeds the case label range (0 .. 255). In such a case, an ELSE clause *may* be justified, although it is not part of the Oberon-07 language definition. But as outlined above, even in that case one should first try to express a numeric case statement using explicit case label ranges.
 
-**B. Alternative version B** (source files *ORG1.Mod* and *ORP1.Mod*):
+-------------------------------------------------------------------------------------
+
+**Variants**:
+
+There are also several alternative variants that have been investigated for purely experimental purposes:
+
+**Variant 1** (use source file *ORG1.Mod* from the subdirectory [**Sources/FPGAOberon2013/Variant1**](Sources/FPGAOberon2013/Variant1), not recommended):
 
 * Jump tables are addressed relative to the program counter (PC), and the branch offset when selecting the component statement is computed at **compile** time.
 
@@ -81,7 +83,9 @@ In this variant, the index range and the case label range are the same (0 .. 255
 
 We do not recommend restricting the index range in this way. If one wants to restrict the index range, CHAR selectors can be used. In addition, the creation of traps (no trap for values 0 .. 255, trap for values outside 0 .. 255) is inconsistent. 
 
-**C. Alternative version C** (source files *ORG2.Mod* and *ORP2.Mod*):
+-------------------------------------------------------------------------------------
+
+**Variant 2** (use source files *ORG2.Mod* and *ORP2.Mod* from the subdirectory [**Sources/FPGAOberon2013/Variant2**](Sources/FPGAOberon2013/Variant2), not recommended):
 
 * Jump tables are addressed relative to the program counter (PC), and the branch offset when selecting the component statement is computed at **run** time.
 
@@ -101,11 +105,14 @@ In this case, the index range is even more restricted (to 0 .. highest case labe
 
 We do not recommend restricting the index range in this way. In addition, the creation of traps (no trap for values 0 .. highest case label range, trap for values outside 0 .. highest label range) is inconsistent. 
 
-**D. Further optimized version** (not implemented):
+-------------------------------------------------------------------------------------
+
+**Variant 3** (not implemented)
 
 * If the branch instruction of the form **B,cond  [Rn]** of the RISC processor, as defined on www.projectoberon.com, were adapted to be of the form **B,cond  PC, [Rn]** (where the target of the branch is computed by adding the contents of a register to the current *program counter*), then the average overhead of any selection in a CASE statement would be **6** instructions (see www.astrobe.com for an example of such a modification of RISC).
 
 ------------------------------------------------------
+
 **Preparing your compiler to support the numeric CASE statement**
 
 If *Extended Oberon* is used, the numeric case statement (default version) is already implemented on your system.
@@ -150,372 +157,387 @@ Import the files to your Oberon system. If you use an emulator, click on the *PC
 
 ------------------------------------------------------
 
-**STEP 4 (optional):** You can at any time build any of the alternative version of the compiler as follows:
-
-     ORP.Compile ORG1.Mod/s ORP1.Mod/s ~
-     System.Free ORTool ORP ORG ORB ORS ~
-
-or
-
-     ORP.Compile ORG2.Mod/s ORP2.Mod/s ~
-     System.Free ORTool ORP ORG ORB ORS ~
-
-------------------------------------------------------
 **Testing the modified CASE statement on your system**
 
-     MODULE Test; (*AP 1.8.18  Test program for the modified CASE statement in Oberon-07 for RISC*)
-       IMPORT Texts, Oberon;
-
-       TYPE R = RECORD a: INTEGER END ;
-         R0 = RECORD (R) b: INTEGER END ;
-         R1 = RECORD (R) b: REAL END ;
-         R2 = RECORD (R) b: SET END ;
-         R3 = RECORD (R2) c: SET END ;
-         P = POINTER TO R;
-         P0 = POINTER TO R0;
-         P1 = POINTER TO R1;
-         P2 = POINTER TO R2;
-         P3 = POINTER TO R3;
-
-       VAR W: Texts.Writer;
-         p, q: P; p0: P0; p1: P1; p2: P2; p3: P3;
-
-       PROCEDURE CaseNum*;
-         VAR S: Texts.Scanner; i, j: INTEGER;
-       BEGIN Texts.OpenScanner(S, Oberon.Par.text, Oberon.Par.pos); Texts.Scan(S);
-         IF S.class = Texts.Int THEN i := S.i; j := 0;
-           CASE i OF
-              2..5  : j := 11                    (*lower case label limit = 2*)
-             |8 .. 10 : j := 22
-             |13 .. 15: j := 33
-             |28 .. 30, 18 .. 22: j := 44
-             |33 .. 36, 24: j := 55              (*higher case label limit = 36*)
-           (*ELSE j := 66*)                      (*for the default version of the compiler*)
-           END  ;
-           Texts.WriteInt(W, j, 4)
-         ELSE Texts.WriteString(W, " usage: Test.CaseNum number")
-         END ;
-         Texts.WriteLn(W); Texts.Append(Oberon.Log, W.buf)
-       END CaseNum;
-
-       PROCEDURE CaseChar*;
-         VAR S: Texts.Scanner; ch: CHAR; j: INTEGER;
-       BEGIN Texts.OpenScanner(S, Oberon.Par.text, Oberon.Par.pos); Texts.Scan(S);
-         IF (S.class = Texts.Name) OR (S.class = Texts.String) THEN ch := S.s[0]; j := 0;
-           CASE ch OF
-             "D" .. "F" : j := 22                (*lower case label limit = ORD("D") = 68*)
-             |"J" .. "M" : j := 33
-             |"f" .. "h", "b" .. "c" : j := 44
-             |"r" .. "u", "e", "m"   : j := 55   (*higher case label limit = ORD("u") = 117*)
-           (*ELSE j := 66*)                      (*for the default version of the compiler*)
-           END  ;
-           Texts.WriteInt(W, j, 4)
-         ELSE Texts.WriteString(W, " usage: Test.CaseChar char")
-         END ;
-         Texts.WriteLn(W); Texts.Append(Oberon.Log, W.buf)
-       END CaseChar;
-
-       PROCEDURE CaseType*;
-         VAR S: Texts.Scanner; i, j: INTEGER;
-       BEGIN Texts.OpenScanner(S, Oberon.Par.text, Oberon.Par.pos); Texts.Scan(S);
-         IF S.class = Texts.Int THEN i := S.i; j := 0; p := q;
-           IF i = 0 THEN p := p0
-           ELSIF i = 1 THEN p := p1
-           ELSIF i = 2 THEN p := p2
-           ELSIF i = 3 THEN p := p3
-           END ;
-           CASE p OF
-              P0: IF p IS P0 THEN j := 222 ELSE j := 999 END
-            | P1: IF p IS P1 THEN j := 333 ELSE j := 999 END
-            | P3: IF p IS P3 THEN j := 555 ELSE j := 999 END  (*P3 is an extension of P2, not P!*)
-            | P2: IF p IS P2 THEN j := 444 ELSE j := 999 END
-           (*ELSE j := 666*)                                  (*for the default version of the compiler*)
-           END ;
-           Texts.WriteInt(W, j, 4)
-         ELSE Texts.WriteString(W, " usage: Test.CaseType extension (-1 = no extension)")
-         END ;
-         Texts.WriteLn(W); Texts.Append(Oberon.Log, W.buf)
-       END CaseType;
-
-     BEGIN Texts.OpenWriter(W); NEW(p); NEW(q); NEW(p0); NEW(p1); NEW(p2); NEW(p3)
-     END Test.
-
-     ORP.Compile Test.Mod/s ~
-     System.Free Test ~
-
-     ORTool.DecObj Test.rsc ~
-
-     ----------------- num ---------------
-
-     Test.CaseNum 0     Test.CaseNum 1       # range 0..1    -->  0  (or 66 if the ELSE clause is uncommented)
-     Test.CaseNum 2     Test.CaseNum 5       # range 2..5    --> 11
-     Test.CaseNum  8    Test.CaseNum 10      # range  8..10  --> 22
-     Test.CaseNum 13    Test.CaseNum 15      # range 13..15  --> 33
-     Test.CaseNum 18    Test.CaseNum 22      # range 18..22  --> 44
-     Test.CaseNum 33    Test.CaseNum 36      # range 33..36  --> 55
-
-     Test.CaseNum 11    Test.CaseNum 17      # inside the case label limits  --> 0  (or 66 if the ELSE clause is uncommented)
-     Test.CaseNum 23    Test.CaseNum 32      # inside the case label limits  --> 0  (or 66 if the ELSE clause is uncommented)
-     Test.CaseNum 99    Test.CaseNum 255     # outside the case label limits  --> 0  (or 66 if the ELSE clause is uncommented)
-
-     Test.CaseNum -99   Test.CaseNum -1      # outside the minimum case label limit 0 --> TRAP
-     Test.CaseNum 256   Test.CaseNum 1000    # outside the maximum case label limit 256 --> TRAP
-
-     ----------------- char ---------------
-
-     Test.CaseChar D    Test.CaseChar F      # range D..F  --> 22
-     Test.CaseChar J    Test.CaseChar M      # range J..M  --> 33
-     Test.CaseChar f    Test.CaseChar h      # range f..h  --> 44
-     Test.CaseChar b    Test.CaseChar c      # range b..c  --> 44
-     Test.CaseChar r    Test.CaseChar u      # range r..u  --> 55
-     Test.CaseChar e    Test.CaseChar m      # range e, x  --> 55
-
-     Test.CaseChar H    Test.CaseChar Y      # inside the case label limits  --> 0  (or 66 if the ELSE clause is uncommented)
-     Test.CaseChar "["  Test.CaseChar "^"    # inside the case label limits  --> 0  (or 66 if the ELSE clause is uncommented)
-     Test.CaseChar a    Test.CaseChar p      # inside the case label limits  --> 0  (or 66 if the ELSE clause is uncommented)
-
-     Test.CaseChar A    Test.CaseChar C      # outside the lower case label limit "D"   --> 0  (or 66 if the ELSE clause is uncommented)
-     Test.CaseChar v    Test.CaseChar z      # outside the higher case label limit "u"  --> 0  (or 66 if the ELSE clause is uncommented)
-
-     ----------------- type ---------------
-
-     Test.CaseType -1         # no extension  -->   0  (or 666 if the ELSE clause is uncommented)
-     Test.CaseType  0         # P0            --> 222
-     Test.CaseType  1         # P1            --> 333
-     Test.CaseType  2         # P2            --> 444
-     Test.CaseType  3         # P3            --> 555
-     Test.CaseType  4         # no extension  -->   0  (or 666 if the ELSE clause is uncommented)
+See the file *Test.Mod* in the *Sources* directory of this repository.
 
 ------------------------------------------------------
 **DIFFERENCES OF THE DEFAULT VERSION TO THE OFFICIAL OBERON-07 COMPILER**
 
-In the output of the following Unix-style *diff* commands, lines that begin with "<" are the old lines (i.e. code from the official Oberon-07 compiler), while lines that begin with ">" are the modified lines (i.e. code from *this* repository).
-
-**$ diff FPGAOberon2013/ORG.Mod OberonNumericCaseStatement/ORG.Mod**
-
-*ORG.CONST:*
+**$ diff -u FPGAOberon2013/ORG.Mod OberonNumericCaseStatement/ORG.Mod**
 
 ```diff
-10c10
-<     maxCode = 8000; maxStrx = 2400; maxTD = 160; C24 = 1000000H;
----
->     maxCode = 8800; maxStrx = 3200; maxTD = 160; C16 = 10000H; C24 = 1000000H; C28 = 10000000H; C30 = 40000000H;
-19c19
-<     MI = 0; PL = 8; EQ = 1; NE = 9; LT = 5; GE = 13; LE = 6; GT = 14;
----
->     MI = 0; PL = 8; EQ = 1; NE = 9; CS = 2; CC = 10; LT = 5; GE = 13; LE = 6; GT = 14;
+--- FPGAOberon2013/ORG.Mod	2024-12-23 13:44:49
++++ Oberon-numeric-case-statement/Sources/FPGAOberon2013/ORG.Mod	2024-12-23 20:52:51
+@@ -1,4 +1,4 @@
+-MODULE ORG; (* N.Wirth, 16.4.2016 / 4.4.2017 / 31.5.2019  Oberon compiler; code generator for RISC*)
++MODULE ORG; (* N.Wirth, 16.4.2016 / 4.4.2017 / 17.9.2018  Oberon compiler; code generator for RISC / AP 13.12.24*)
+   IMPORT SYSTEM, Files, ORS, ORB;
+   (*Code generator for Oberon compiler for RISC processor.
+      Procedural interface to Parser ORP; result in array "code".
+@@ -7,7 +7,7 @@
+   CONST WordSize* = 4;
+     StkOrg0 = -64; VarOrg0 = 0;  (*for RISC-0 only*)
+     MT = 12; SP = 14; LNK = 15;   (*dedicated registers*)
+-    maxCode = 8000; maxStrx = 2400; maxTD = 160; C24 = 1000000H;
++    maxCode = 8800; maxStrx = 3200; maxTD = 160; C16 = 10000H; C24 = 1000000H; C28 = 10000000H; C30 = 40000000H;
+     Reg = 10; RegI = 11; Cond = 12;  (*internal item modes*)
+ 
+   (*frequently used opcodes*)  U = 2000H; V = 1000H;
+@@ -21,9 +21,11 @@
+     TYPE Item* = RECORD
+       mode*: INTEGER;
+       type*: ORB.Type;
++      obj*: ORB.Object;
+       a*, b*, r: LONGINT;
+       rdo*: BOOLEAN  (*read only*)
+     END ;
++    LabelRange* = RECORD low*, high*, label*: INTEGER END ;
+ 
+   (* Item forms and meaning of fields:
+     mode    r      a       b
+@@ -51,6 +53,11 @@
+ 
+   (*instruction assemblers according to formats*)
+ 
++  PROCEDURE incR;
++  BEGIN
++    IF RH < MT-1 THEN INC(RH) ELSE ORS.Mark("register stack overflow") END
++  END incR;
++
+   PROCEDURE Put0(op, a, b, c: LONGINT);
+   BEGIN (*emit format-0 instruction*)
+     code[pc] := ((a*10H + b) * 10H + op) * 10000H + c; INC(pc)
+@@ -63,11 +70,17 @@
+   END Put1;
+ 
+   PROCEDURE Put1a(op, a, b, im: LONGINT);
+-  BEGIN (*same as Put1, but with range test  -10000H <= im < 10000H*)
+-    IF (im >= -10000H) & (im <= 0FFFFH) THEN Put1(op, a, b, im)
+-    ELSE Put1(Mov+U, RH, 0, im DIV 10000H);
+-      IF im MOD 10000H # 0 THEN Put1(Ior, RH, RH, im MOD 10000H) END ;
+-      Put0(op, a, b, RH)
++    VAR r: INTEGER;
++  BEGIN (*same as Put1, but with range test -C16 <= im < C16*)
++    IF (im >= -C16) & (im < C16) THEN Put1(op, a, b, im)
++    ELSIF op = Mov THEN
++      Put1(Mov+U, a, 0, im DIV C16);
++      IF im MOD C16 # 0 THEN Put1(Ior, a, a, im MOD C16) END
++    ELSE r := RH;
++      IF (a = RH) OR (b = RH) THEN incR END ;
++      Put1(Mov+U, RH, 0, im DIV C16);
++      IF im MOD C16 # 0 THEN Put1(Ior, RH, RH, im MOD C16) END ;
++      Put0(op, a, b, RH); RH := r
+     END
+   END Put1a;
+ 
+@@ -81,11 +94,6 @@
+     code[pc] := ((op+12) * 10H + cond) * 1000000H + (off MOD 1000000H); INC(pc)
+   END Put3;
+ 
+-  PROCEDURE incR;
+-  BEGIN
+-    IF RH < MT-1 THEN INC(RH) ELSE ORS.Mark("register stack overflow") END
+-  END incR;
+-
+   PROCEDURE CheckRegs*;
+   BEGIN
+     IF RH # 0 THEN ORS.Mark("Reg Stack"); RH := 0 END ;
+@@ -117,21 +125,29 @@
+   BEGIN fix(at, pc-at-1)
+   END FixOne;
+ 
+-  PROCEDURE FixLink*(L: LONGINT);
+-    VAR L1: LONGINT;
+-  BEGIN
+-    WHILE L # 0 DO L1 := code[L] MOD 40000H; fix(L, pc-L-1); L := L1 END
+-  END FixLink;
++  PROCEDURE fix1(at, with: LONGINT);
++    VAR v: LONGINT;
++  BEGIN (*fix format-1 instruction*)
++    IF with < 0 THEN v := C28 (*set v bit*) ELSE v := 0 END ;
++    code[at] := code[at] DIV C16 * C16 + (with MOD C16) + v
++  END fix1;
+ 
+-  PROCEDURE FixLinkWith(L0, dst: LONGINT);
+-    VAR L1: LONGINT;
+-  BEGIN
+-    WHILE L0 # 0 DO
+-      L1 := code[L0] MOD C24;
+-      code[L0] := code[L0] DIV C24 * C24 + ((dst - L0 - 1) MOD C24); L0 := L1
++  PROCEDURE FixLinkWith(L, dst: LONGINT);
++    VAR L1, k: LONGINT;
++  BEGIN (*fix format-1 and branch instructions*)
++    WHILE L # 0 DO k := code[L] DIV C30 MOD 4;
++      IF k = 1 THEN L1 := code[L] MOD C16; fix1(L, (dst-L)*4)
++      ELSIF k = 3 THEN L1 := code[L] MOD 40000H; fix(L, dst-L-1)
++      ELSE ORS.Mark("fixup impossible"); L1 := 0
++      END ;
++      L := L1
+     END
+   END FixLinkWith;
+ 
++  PROCEDURE FixLink*(L: LONGINT);
++  BEGIN FixLinkWith(L, pc)
++  END FixLink;
++
+   PROCEDURE merged(L0, L1: LONGINT): LONGINT;
+     VAR L2, L3: LONGINT;
+   BEGIN (*merge branch instructions*)
+@@ -247,7 +263,7 @@
+   END MakeStringItem;
+ 
+   PROCEDURE MakeItem*(VAR x: Item; y: ORB.Object; curlev: LONGINT);
+-  BEGIN x.mode := y.class; x.type := y.type; x.a := y.val; x.rdo := y.rdo;
++  BEGIN x.obj := y; x.mode := y.class; x.type := y.type; x.a := y.val; x.rdo := y.rdo;
+     IF y.class = ORB.Par THEN x.b := 0
+     ELSIF (y.class = ORB.Const) & (y.type.form = ORB.String) THEN x.b := y.lev  (*len*)
+     ELSE x.r := y.lev
+@@ -284,7 +300,7 @@
+           ELSE ORS.Mark("error in Index")
+           END
+         END ;
+-        Trap(10, 1)  (*BCC*)
++        Trap(CC, 1)
+       END ;
+       IF s = 4 THEN Put1(Lsl, y.r, y.r, 2) ELSIF s > 1 THEN Put1a(Mul, y.r, y.r, s) END ;
+       IF x.mode = ORB.Var THEN
+@@ -666,9 +682,9 @@
+     Put2(Str, RH, x.r, 0); Put1(Add, x.r, x.r, 4);
+     Put1(Asr, RH, RH, 24); Put3(BC, NE,  -6);  RH := 0
+    END CopyString;
+-  
++
+   (* Code generation for parameters *)
+-  
++
+   PROCEDURE OpenArrayParam*(VAR x: Item);
+   BEGIN loadAdr(x);
+     IF x.type.len >= 0 THEN Put1a(Mov, RH, 0, x.type.len) ELSE Put2(Ldr, RH, SP, x.a+4+frame) END ;
+@@ -818,8 +834,34 @@
+     RH := 0
+   END Return;
+ 
+-  (* In-line code procedures*)
++  (* Case Statements *)
++
++  PROCEDURE CaseHead*(VAR x: Item; VAR L0: LONGINT);
++  BEGIN load(x);  (*value of case expression*)
++    L0 := pc; Put1(Cmp, RH, x.r, 0);  (*higher bound, fixed up in CaseTail*)
++    Put3(BC, CC, 0);  (*branch to else, fixed up in CaseTail*)
++    Put1(Add, x.r, x.r, 0);  (*nof words between BL instruction at L0+4 and jump table, fixed up in CaseTail*)
++    Put1(Lsl, x.r, x.r, 2);
++    (*L0+4*) Put3(BL, 7, 0);  (*LNK := PC+1*)
++    Put0(Add, LNK, LNK, x.r); Put3(BR, 7, LNK); DEC(RH)
++  END CaseHead;
+ 
++  PROCEDURE CaseTail*(L0, L1: LONGINT; n: INTEGER; VAR tab: ARRAY OF LabelRange);  (*L1 = label for else*)
++    VAR i, j: INTEGER;
++  BEGIN
++    IF n > 0 THEN fix1(L0, tab[n-1].high + 1) (*higher bound*) ELSIF L1 = 0 THEN ORS.Mark("empty case") END ;
++    IF L1 = 0 THEN L1 := pc; Trap(7, 1) END ;  (*create else*)
++    fix(L0+1, L1-L0-2);  (*branch to else*)
++    fix1(L0+2, pc-L0-5);  (*nof words between BL instruction at L0+4 and jump table*)
++    j := 0;
++    FOR i := 0 TO n-1 DO  (*construct jump table*)
++      WHILE j < tab[i].low DO BJump(L1); INC(j) END ;  (*else*)
++      WHILE j <= tab[i].high DO BJump(tab[i].label); INC(j) END
++    END
++  END CaseTail;
++
++  (* In-line code procedures *)
++
+   PROCEDURE Increment*(upordown: LONGINT; VAR x, y: Item);
+     VAR op, zr, v: LONGINT;
+   BEGIN (*frame = 0*)
+@@ -1064,6 +1106,7 @@
+       obj := obj.next
+     END ;
+     size := varsize + strx + comsize + (pc + nofimps + nofent + nofptrs + 1)*4;  (*varsize includes type descriptors*)
++
+     ORB.MakeFileName(name, modid, ".rsc"); (*write code file*)
+     F := Files.New(name); Files.Set(R, F, 0); Files.WriteString(R, modid); Files.WriteInt(R, key); Files.Write(R, CHR(version));
+     Files.WriteInt(R, size);
 ```
 
-*ORG.TYPE:*
+**$ diff -u FPGAOberon2013/ORP.Mod OberonNumericCaseStatement/ORP.Mod**
 
 ```diff
-26a27
->     LabelRange* = RECORD low*, high*, label*: INTEGER END ;
+--- FPGAOberon2013/ORP.Mod	2021-05-24 10:06:15
++++ Oberon-numeric-case-statement/Sources/FPGAOberon2013/ORP.Mod	2024-12-23 20:53:02
+@@ -1,10 +1,12 @@
+-MODULE ORP; (*N. Wirth 1.7.97 / 8.3.2020  Oberon compiler for RISC in Oberon-07*)
++MODULE ORP; (*N. Wirth 1.7.97 / 8.3.2020  Oberon compiler for RISC in Oberon-07 / AP 13.12.24*)
+   IMPORT Texts, Oberon, ORS, ORB, ORG;
+   (*Author: Niklaus Wirth, 2014.
+     Parser of Oberon-RISC compiler. Uses Scanner ORS to obtain symbols (tokens),
+     ORB for definition of data structures and for handling import and export, and
+     ORG to produce binary code. ORP performs type checking and data allocation.
+     Parser is target-independent, except for part of the handling of allocations.*)
++
++  CONST NofCases = 256;
+ 
+   TYPE PtrBase = POINTER TO PtrBaseDesc;
+     PtrBaseDesc = RECORD  (*list of names of pointer base types*)
+@@ -157,7 +159,8 @@
+         ELSE ORS.Mark("not an identifier")
+         END ;
+         Check(ORS.rparen, " ) missing")
+-      END
++      END ;
++      x.obj := NIL
+     END
+   END selector;
+ 
+@@ -462,33 +465,91 @@
+ 
+   PROCEDURE StatSequence;
+     VAR obj: ORB.Object;
+-      orgtype: ORB.Type; (*original type of case var*)
+       x, y, z, w: ORG.Item;
+       L0, L1, rx: LONGINT;
+ 
+-    PROCEDURE TypeCase(obj: ORB.Object; VAR x: ORG.Item);
+-      VAR typobj: ORB.Object;
++    PROCEDURE TypeCase(obj: ORB.Object; VAR L0: LONGINT);
++      VAR typobj: ORB.Object; x: ORG.Item;
++        orgtype: ORB.Type;  (*original type of case var*)
+     BEGIN
+       IF sym = ORS.ident THEN
+-        qualident(typobj); ORG.MakeItem(x, obj, level);
++        qualident(typobj); ORG.MakeItem(x, obj, level); orgtype := obj.type;
+         IF typobj.class # ORB.Typ THEN ORS.Mark("not a type") END ;
+         TypeTest(x, typobj.type, FALSE); obj.type := typobj.type;
+-        ORG.CFJump(x); Check(ORS.colon, ": expected"); StatSequence
+-      ELSE ORG.CFJump(x); ORS.Mark("type id expected")
++        ORG.CFJump(x); Check(ORS.colon, ": expected"); StatSequence;
++        ORG.FJump(L0); ORG.Fixup(x); obj.type := orgtype;
++      ELSE ORS.Mark("type id expected"); Check(ORS.colon, ": expected"); StatSequence
+       END
+-     END TypeCase;
++    END TypeCase;
+ 
++    PROCEDURE TypeCasePart(obj: ORB.Object);
++      VAR L0: LONGINT;
++    BEGIN Check(ORS.of, "OF expected"); L0 := 0;
++      WHILE (sym < ORS.end) OR (sym = ORS.bar) DO
++        IF sym = ORS.bar THEN ORS.Get(sym) ELSE TypeCase(obj, L0) END
++      END ;
++      IF sym = ORS.else THEN ORS.Get(sym); StatSequence END ;
++      ORG.FixLink(L0)
++    END TypeCasePart;
++
++    PROCEDURE CaseLabel(VAR x: ORG.Item);
++    BEGIN expression(x); CheckConst(x);
++      IF (x.type.form = ORB.String) & (x.b = 2) THEN ORG.StrToChar(x)
++      ELSIF ~(x.type.form IN {ORB.Int, ORB.Char}) OR (x.a < 0) OR (x.a > 255) THEN
++        ORS.Mark("invalid case label"); x.type := ORB.intType
++      END
++    END CaseLabel;
++
++    PROCEDURE NumericCase(LabelForm: INTEGER; VAR n: INTEGER; VAR tab: ARRAY OF ORG.LabelRange);
++      VAR x, y: ORG.Item; i: INTEGER;
++    BEGIN
++      REPEAT CaseLabel(x);
++        IF x.type.form # LabelForm THEN ORS.Mark("invalid label form") END ;
++        IF sym = ORS.upto THEN ORS.Get(sym); CaseLabel(y);
++          IF (x.type.form # y.type.form) OR (x.a >= y.a) THEN ORS.Mark("invalid label range"); y := x END
++        ELSE y := x
++        END ;
++        IF n < NofCases THEN (*enter label range into ordered table*) i := n;
++          WHILE (i > 0) & (tab[i-1].low > y.a) DO tab[i] := tab[i-1]; DEC(i) END ;
++          IF (i > 0) & (tab[i-1].high >= x.a) THEN ORS.Mark("overlapping case labels") END ;
++          tab[i].low := x.a; tab[i].high := y.a; tab[i].label := ORG.Here(); INC(n)
++        ELSE ORS.Mark("too many case labels")
++        END ;
++        IF sym = ORS.comma THEN ORS.Get(sym)
++        ELSIF (sym < ORS.comma) OR (sym = ORS.semicolon) THEN ORS.Mark("comma?")
++        END
++      UNTIL (sym > ORS.comma) & (sym # ORS.semicolon);
++      Check(ORS.colon, ": expected"); StatSequence
++    END NumericCase;
++
++    PROCEDURE NumericCasePart(VAR x: ORG.Item);
++      VAR L0, L1, L2: LONGINT; n, labelform: INTEGER;
++        tab: ARRAY NofCases OF ORG.LabelRange;  (*ordered table of label ranges*)
++    BEGIN Check(ORS.of, "OF expected"); ORG.CaseHead(x, L0); n := 0; L2 := 0; labelform := x.type.form;
++      WHILE (sym < ORS.end) OR (sym = ORS.bar) DO
++        IF sym = ORS.bar THEN ORS.Get(sym) ELSE NumericCase(labelform, n, tab); ORG.FJump(L2) END
++      END ;
++      IF sym = ORS.else THEN ORS.Get(sym); L1 := ORG.Here(); StatSequence; ORG.FJump(L2) ELSE L1 := 0 END ;
++      ORG.CaseTail(L0, L1, n, tab); ORG.FixLink(L2)
++    END NumericCasePart;
++
+     PROCEDURE SkipCase;
+-    BEGIN 
+-      WHILE sym # ORS.colon DO ORS.Get(sym) END ;
+-      ORS.Get(sym); StatSequence
++      VAR obj: ORB.Object;
++    BEGIN Check(ORS.of, "OF expected");
++      WHILE (sym < ORS.end) OR (sym = ORS.bar) DO
++        IF sym = ORS.bar THEN ORS.Get(sym)
++        ELSE (*type case assumed*)
++          IF sym = ORS.ident THEN qualident(obj) END ;
++          Check(ORS.colon, ": expected"); StatSequence
++        END
++      END ;
++      IF sym = ORS.else THEN ORS.Get(sym); StatSequence END
+     END SkipCase;
+ 
+   BEGIN (* StatSequence *)
+     REPEAT (*sync*) obj := NIL;
+-      IF ~((sym >= ORS.ident)  & (sym <= ORS.for) OR (sym >= ORS.semicolon)) THEN
+-        ORS.Mark("statement expected");
+-        REPEAT ORS.Get(sym) UNTIL (sym >= ORS.ident)
++      IF ~((sym >= ORS.ident) & (sym <= ORS.for) OR (sym >= ORS.semicolon)) THEN ORS.Mark("statement expected");
++        REPEAT ORS.Get(sym) UNTIL sym >= ORS.ident
+       END ;
+       IF sym = ORS.ident THEN
+         qualident(obj); ORG.MakeItem(x, obj, level);
+@@ -567,20 +628,12 @@
+         ELSE ORS.Mark("identifier expected")
+         END
+       ELSIF sym = ORS.case THEN
+-        ORS.Get(sym);
+-        IF sym = ORS.ident THEN
+-          qualident(obj); orgtype := obj.type;
+-          IF (orgtype.form = ORB.Pointer) OR (orgtype.form = ORB.Record) & (obj.class = ORB.Par) THEN
+-            Check(ORS.of, "OF expected"); TypeCase(obj, x); L0 := 0;
+-            WHILE sym = ORS.bar DO
+-              ORS.Get(sym); ORG.FJump(L0); ORG.Fixup(x); obj.type := orgtype; TypeCase(obj, x)
+-            END ;
+-            ORG.Fixup(x); ORG.FixLink(L0); obj.type := orgtype
+-          ELSE ORS.Mark("numeric case not implemented");
+-            Check(ORS.of, "OF expected"); SkipCase;
+-            WHILE sym = ORS.bar DO SkipCase END
+-          END
+-        ELSE ORS.Mark("ident expected")
++        ORS.Get(sym); x.obj := NIL; expression(x);
++        IF x.type.form IN {ORB.Int, ORB.Byte, ORB.Char} THEN NumericCasePart(x)
++        ELSIF (x.obj # NIL) & (x.obj.type # NIL) &
++          ((x.type.form = ORB.Pointer) & (x.type.base.form = ORB.Record) OR
++          (x.type.form = ORB.Record) & (x.mode = ORB.Par)) THEN TypeCasePart(x.obj)
++        ELSE ORS.Mark("invalid case variable"); SkipCase
+         END ;
+         Check(ORS.end, "no END")
+       END ;
+@@ -608,7 +661,7 @@
+     ELSE first := NIL
+     END
+   END IdentList;
+-
++  
+   PROCEDURE ArrayType(VAR type: ORB.Type);
+     VAR x: ORG.Item; typ: ORB.Type; len: LONGINT;
+   BEGIN NEW(typ); typ.form := ORB.NoTyp;
+@@ -994,7 +1047,7 @@
+     Oberon.Collect(0)
+   END Compile;
+ 
+-BEGIN Texts.OpenWriter(W); Texts.WriteString(W, "OR Compiler  8.3.2020");
++BEGIN Texts.OpenWriter(W); Texts.WriteString(W, "OR Compiler  8.3.2020 / AP 13.12.24");
+   Texts.WriteLn(W); Texts.Append(Oberon.Log, W.buf);
+   NEW(dummy); dummy.class := ORB.Var; dummy.type := ORB.intType;
+   expression := expression0; Type := Type0; FormalType := FormalType0
 ```
 
-*ORG.fix1, ORG.FixLink, ORG.FixLinkWith, ORG.merged:*
-
-```diff
-120,131c121,136
-<   PROCEDURE FixLink*(L: LONGINT);
-<     VAR L1: LONGINT;
-<   BEGIN
-<     WHILE L # 0 DO L1 := code[L] MOD 40000H; fix(L, pc-L-1); L := L1 END
-<   END FixLink;
-< 
-<   PROCEDURE FixLinkWith(L0, dst: LONGINT);
-<     VAR L1: LONGINT;
-<   BEGIN
-<     WHILE L0 # 0 DO
-<       L1 := code[L0] MOD C24;
-<       code[L0] := code[L0] DIV C24 * C24 + ((dst - L0 - 1) MOD C24); L0 := L1
----
->   PROCEDURE fix1(at, with: LONGINT);
->     VAR v: LONGINT;
->   BEGIN (*fix format-1 instruction*)
->     IF with < 0 THEN v := C28 (*set v bit*) ELSE v := 0 END ;
->     code[at] := code[at] DIV C16 * C16 + (with MOD C16) + v
->   END fix1;
-> 
->   PROCEDURE FixLinkWith(L, dst: LONGINT);
->     VAR L1, k: LONGINT;
->   BEGIN (*fix format-1 and branch instructions*)
->     WHILE L # 0 DO k := code[L] DIV C30 MOD 4;
->       IF k = 1 THEN L1 := code[L] MOD C16; fix1(L, (dst-L)*4)
->       ELSIF k = 3 THEN L1 := code[L] MOD 40000H; fix(L, dst-L-1)
->       ELSE ORS.Mark("fixup impossible"); L1 := 0
->       END ;
->       L := L1
-134a140,143
->   PROCEDURE FixLink*(L: LONGINT);
->   BEGIN FixLinkWith(L, pc)
->   END FixLink;
-> 
-```
-
-*ORG.CaseHead, ORG.CaseTail:*
-
-```diff
-816c825,851
-> 
->   PROCEDURE CaseHead*(VAR x: Item; VAR L0: LONGINT);
->   BEGIN load(x); L0 := pc;
->     (*L0+0*) Put1(Cmp, RH, x.r, 0);  (*higher bound, fixed up in CaseTail*)
->     (*L0+1*) Put3(BC, CC, 0);  (*branch to else, fixed up in CaseTail*)
->     (*L0+2*) Put1(Add, x.r, x.r, 0);  (*index + offset from L0+4 to jump table, fixed up in CaseTail*)
->     (*L0+3*) Put1(Lsl, x.r, x.r, 2);
->     (*L0+4*) Put3(BL, 7, 0);  (*LNK := PC+1*)
->     Put0(Add, LNK, LNK, x.r); Put3(BR, 7, LNK); DEC(RH)
->   END CaseHead;
-> 
->   PROCEDURE CaseTail*(L0, L1: LONGINT; n: INTEGER; VAR tab: ARRAY OF LabelRange);
->     VAR i, j: INTEGER;
->   BEGIN
->     IF n > 0 THEN fix1(L0, tab[n-1].high + 1) (*higher bound*) ELSIF L1 = 0 THEN ORS.Mark("empty case") END ;
->     IF L1 = 0 THEN L1 := pc; Trap(7, 1) END ;  (*create else unless it already exists*)
->     fix(L0+1, L1-L0-2);  (*branch to else*)
->     fix1(L0+2, pc-L0-5);  (*offset from L0+4 to jump table*)
->     j := 0;
->     FOR i := 0 TO n-1 DO  (*construct jump table*)
->       WHILE j < tab[i].low DO BJump(L1); INC(j) END ;  (*else*)
->       WHILE j <= tab[i].high DO BJump(tab[i].label); INC(j) END
->     END
->   END CaseTail;
-```
-
-**$ diff FPGAOberon2013/ORP.Mod OberonNumericCaseStatement/ORP.Mod**
-
-*ORP.CONST:*
-
-```diff
-8a9,10
->   CONST NofCases = 256;
-```
-
-*ORP.CheckCase:*
-
-```diff
-75a78,82
->   PROCEDURE CheckCase(VAR x: ORG.Item);
->   BEGIN
->     IF ~(x.type.form IN {ORB.Int, ORB.Byte, ORB.Char}) THEN ORS.Mark("invalid type"); x.type := ORB.intType END
->   END CheckCase;
-```
-
-*ORP.StatSequence:*
-
-```diff
-465d471
-<       orgtype: ORB.Type; (*original type of case var*)
-     469,470c475,477
-<     PROCEDURE TypeCase(obj: ORB.Object; VAR x: ORG.Item);
-<       VAR typobj: ORB.Object;
----
->     PROCEDURE TypeCase(obj: ORB.Object; VAR L0: LONGINT);
->       VAR typobj: ORB.Object; x: ORG.Item;
->         orgtype: ORB.Type;  (*original type of case var*)
-473c480
-<         qualident(typobj); ORG.MakeItem(x, obj, level);
----
->         qualident(typobj); ORG.MakeItem(x, obj, level); orgtype := obj.type;
-476,477c483,503
-<         ORG.CFJump(x); Check(ORS.colon, ": expected"); StatSequence
-<       ELSE ORG.CFJump(x); ORS.Mark("type id expected")
----
->         ORG.CFJump(x); Check(ORS.colon, ": expected"); StatSequence;
->         ORG.FJump(L0); ORG.Fixup(x); obj.type := orgtype
->       ELSE ORS.Mark("type id expected"); Check(ORS.colon, ": expected"); StatSequence
->       END
->     END TypeCase;
-> 
->     PROCEDURE TypeCasePart;
->       VAR obj: ORB.Object; L0: LONGINT;
->     BEGIN qualident(obj); Check(ORS.of, "OF expected"); L0 := 0;
->       WHILE (sym < ORS.end) OR (sym = ORS.bar) DO
->         IF sym = ORS.bar THEN ORS.Get(sym) ELSE TypeCase(obj, L0) END
->       END ;
->       IF sym = ORS.else THEN ORS.Get(sym); StatSequence END ;
->       ORG.FixLink(L0)
->     END TypeCasePart;
-> 
->     PROCEDURE CaseLabel(VAR x: ORG.Item);
->     BEGIN expression(x); CheckConst(x);
->       IF (x.type.form = ORB.String) & (x.b = 2) THEN ORG.StrToChar(x)
->       ELSIF ~(x.type.form IN {ORB.Int, ORB.Char}) OR (x.a < 0) OR (x.a > 255) THEN
->         ORS.Mark("invalid case label"); x.type := ORB.intType
-479c505
-<      END TypeCase;
----
->     END CaseLabel;
-481,485c507,544
-<     PROCEDURE SkipCase;
-<     BEGIN 
-<       WHILE sym # ORS.colon DO ORS.Get(sym) END ;
-<       ORS.Get(sym); StatSequence
-<     END SkipCase;
----
->     PROCEDURE NumericCase(LabelForm: INTEGER; VAR n: INTEGER; VAR tab: ARRAY OF ORG.LabelRange);
->       VAR x, y: ORG.Item; i: INTEGER; continue: BOOLEAN;
->     BEGIN
->       REPEAT CaseLabel(x);
->         IF x.type.form # LabelForm THEN ORS.Mark("invalid label form") END ;
->         IF sym = ORS.upto THEN ORS.Get(sym); CaseLabel(y);
->           IF (x.type.form # y.type.form) OR (x.a >= y.a) THEN ORS.Mark("invalid label range"); y := x END
->         ELSE y := x
->         END ;
->         IF n < NofCases THEN  (*enter label range into ordered table*)
->           i := n; continue := TRUE;
->           WHILE continue & (i > 0) DO
->             IF tab[i-1].low > y.a THEN tab[i] := tab[i-1]; DEC(i)
->             ELSE continue := FALSE;
->               IF tab[i-1].high >= x.a THEN ORS.Mark("overlapping case labels") END
->             END
->           END ;
->           tab[i].low := x.a; tab[i].high := y.a; tab[i].label := ORG.Here(); INC(n)
->         ELSE ORS.Mark("too many case labels")
->         END ;
->         IF sym = ORS.comma THEN ORS.Get(sym)
->         ELSIF (sym < ORS.comma) OR (sym = ORS.semicolon) THEN ORS.Mark("comma?")
->         END
->       UNTIL (sym > ORS.comma) & (sym # ORS.semicolon);
->       Check(ORS.colon, ": expected"); StatSequence
->     END NumericCase;
-> 
->     PROCEDURE NumericCasePart;
->       VAR x: ORG.Item; L0, L1, L2: LONGINT; n, labelform: INTEGER;
->         tab: ARRAY NofCases OF ORG.LabelRange;  (*ordered table of label ranges*)
->     BEGIN expression(x); CheckCase(x); ORG.CaseHead(x, L0); labelform := x.type.form;
->       Check(ORS.of, "OF expected"); n := 0; L2 := 0;
->       WHILE (sym < ORS.end) OR (sym = ORS.bar) DO
->         IF sym = ORS.bar THEN ORS.Get(sym) ELSE NumericCase(labelform, n, tab); ORG.FJump(L2) END
->       END ;
->       IF sym = ORS.else THEN ORS.Get(sym); L1 := ORG.Here(); StatSequence; ORG.FJump(L2) ELSE L1 := 0 END ;
->       ORG.CaseTail(L0, L1, n, tab); ORG.FixLink(L2)
->     END NumericCasePart;
-489,491c548,549
-<       IF ~((sym >= ORS.ident)  & (sym <= ORS.for) OR (sym >= ORS.semicolon)) THEN
-<         ORS.Mark("statement expected");
-<         REPEAT ORS.Get(sym) UNTIL (sym >= ORS.ident)
----
->       IF ~((sym >= ORS.ident) & (sym <= ORS.for) OR (sym >= ORS.semicolon)) THEN ORS.Mark("statement expected");
->         REPEAT ORS.Get(sym) UNTIL sym >= ORS.ident
-571,583c629,632
-<         IF sym = ORS.ident THEN
-<           qualident(obj); orgtype := obj.type;
-<           IF (orgtype.form = ORB.Pointer) OR (orgtype.form = ORB.Record) & (obj.class = ORB.Par) THEN
-<             Check(ORS.of, "OF expected"); TypeCase(obj, x); L0 := 0;
-<             WHILE sym = ORS.bar DO
-<               ORS.Get(sym); ORG.FJump(L0); ORG.Fixup(x); obj.type := orgtype; TypeCase(obj, x)
-<             END ;
-<             ORG.Fixup(x); ORG.FixLink(L0); obj.type := orgtype
-<           ELSE ORS.Mark("numeric case not implemented");
-<             Check(ORS.of, "OF expected"); SkipCase;
-<             WHILE sym = ORS.bar DO SkipCase END
-<           END
-<         ELSE ORS.Mark("ident expected")
----
->         IF sym = ORS.ident THEN obj := ORB.thisObj() ELSE obj := NIL END ;
->         IF (obj # NIL) & (obj.type # NIL) &
->           ((obj.type.form = ORB.Pointer) OR (obj.type.form = ORB.Record) & (obj.class = ORB.Par)) THEN TypeCasePart
->         ELSE NumericCasePart
-```

@@ -1,10 +1,10 @@
-MODULE ORG; (* N.Wirth, 16.4.2016 / 4.4.2017 / 17.9.2018  Oberon compiler; code generator for RISC / AP 7.2.20*)
+MODULE ORG; (* N.Wirth, 16.4.2016 / 4.4.2017 / 17.9.2018  Oberon compiler; code generator for RISC / AP 13.12.24*)
   IMPORT SYSTEM, Files, ORS, ORB;
   (*Code generator for Oberon compiler for RISC processor.
      Procedural interface to Parser ORP; result in array "code".
      Procedure Close writes code-files*)
 
-  CONST WordSize* = 4; NofCases* = 256;
+  CONST WordSize* = 4;
     StkOrg0 = -64; VarOrg0 = 0;  (*for RISC-0 only*)
     MT = 12; SP = 14; LNK = 15;   (*dedicated registers*)
     maxCode = 8800; maxStrx = 3200; maxTD = 160; C16 = 10000H; C24 = 1000000H; C28 = 10000000H; C30 = 40000000H;
@@ -16,11 +16,12 @@ MODULE ORG; (* N.Wirth, 16.4.2016 / 4.4.2017 / 17.9.2018  Oberon compiler; code 
     Fad = 12; Fsb = 13; Fml = 14; Fdv = 15;
     Ldr = 8; Str = 10;
     BR = 0; BLR = 1; BC = 2; BL = 3;
-    MI = 0; PL = 8; EQ = 1; NE = 9; LT = 5; GE = 13; LE = 6; GT = 14;
+    MI = 0; PL = 8; EQ = 1; NE = 9; CS = 2; CC = 10; LT = 5; GE = 13; LE = 6; GT = 14;
 
     TYPE Item* = RECORD
       mode*: INTEGER;
       type*: ORB.Type;
+      obj*: ORB.Object;
       a*, b*, r: LONGINT;
       rdo*: BOOLEAN  (*read only*)
     END ;
@@ -52,6 +53,11 @@ MODULE ORG; (* N.Wirth, 16.4.2016 / 4.4.2017 / 17.9.2018  Oberon compiler; code 
 
   (*instruction assemblers according to formats*)
 
+  PROCEDURE incR;
+  BEGIN
+    IF RH < MT-1 THEN INC(RH) ELSE ORS.Mark("register stack overflow") END
+  END incR;
+
   PROCEDURE Put0(op, a, b, c: LONGINT);
   BEGIN (*emit format-0 instruction*)
     code[pc] := ((a*10H + b) * 10H + op) * 10000H + c; INC(pc)
@@ -64,11 +70,17 @@ MODULE ORG; (* N.Wirth, 16.4.2016 / 4.4.2017 / 17.9.2018  Oberon compiler; code 
   END Put1;
 
   PROCEDURE Put1a(op, a, b, im: LONGINT);
-  BEGIN (*same as Put1, but with range test  -10000H <= im < 10000H*)
-    IF (im >= -10000H) & (im <= 0FFFFH) THEN Put1(op, a, b, im)
-    ELSE Put1(Mov+U, RH, 0, im DIV 10000H);
-      IF im MOD 10000H # 0 THEN Put1(Ior, RH, RH, im MOD 10000H) END ;
-      Put0(op, a, b, RH)
+    VAR r: INTEGER;
+  BEGIN (*same as Put1, but with range test -C16 <= im < C16*)
+    IF (im >= -C16) & (im < C16) THEN Put1(op, a, b, im)
+    ELSIF op = Mov THEN
+      Put1(Mov+U, a, 0, im DIV C16);
+      IF im MOD C16 # 0 THEN Put1(Ior, a, a, im MOD C16) END
+    ELSE r := RH;
+      IF (a = RH) OR (b = RH) THEN incR END ;
+      Put1(Mov+U, RH, 0, im DIV C16);
+      IF im MOD C16 # 0 THEN Put1(Ior, RH, RH, im MOD C16) END ;
+      Put0(op, a, b, RH); RH := r
     END
   END Put1a;
 
@@ -81,11 +93,6 @@ MODULE ORG; (* N.Wirth, 16.4.2016 / 4.4.2017 / 17.9.2018  Oberon compiler; code 
   BEGIN (*emit branch instruction*)
     code[pc] := ((op+12) * 10H + cond) * 1000000H + (off MOD 1000000H); INC(pc)
   END Put3;
-
-  PROCEDURE incR;
-  BEGIN
-    IF RH < MT-1 THEN INC(RH) ELSE ORS.Mark("register stack overflow") END
-  END incR;
 
   PROCEDURE CheckRegs*;
   BEGIN
@@ -256,7 +263,7 @@ MODULE ORG; (* N.Wirth, 16.4.2016 / 4.4.2017 / 17.9.2018  Oberon compiler; code 
   END MakeStringItem;
 
   PROCEDURE MakeItem*(VAR x: Item; y: ORB.Object; curlev: LONGINT);
-  BEGIN x.mode := y.class; x.type := y.type; x.a := y.val; x.rdo := y.rdo;
+  BEGIN x.obj := y; x.mode := y.class; x.type := y.type; x.a := y.val; x.rdo := y.rdo;
     IF y.class = ORB.Par THEN x.b := 0
     ELSIF (y.class = ORB.Const) & (y.type.form = ORB.String) THEN x.b := y.lev  (*len*)
     ELSE x.r := y.lev
@@ -293,7 +300,7 @@ MODULE ORG; (* N.Wirth, 16.4.2016 / 4.4.2017 / 17.9.2018  Oberon compiler; code 
           ELSE ORS.Mark("error in Index")
           END
         END ;
-        Trap(10, 1)  (*BCC*)
+        Trap(CC, 1)
       END ;
       IF s = 4 THEN Put1(Lsl, y.r, y.r, 2) ELSIF s > 1 THEN Put1a(Mul, y.r, y.r, s) END ;
       IF x.mode = ORB.Var THEN
@@ -829,32 +836,28 @@ MODULE ORG; (* N.Wirth, 16.4.2016 / 4.4.2017 / 17.9.2018  Oberon compiler; code 
 
   (* Case Statements *)
 
-  PROCEDURE CaseHead*(VAR x: Item; VAR L0: LONGINT);
-  BEGIN load(x);
-    Put1(Cmp, RH, x.r, NofCases); Trap(10, 1);  (*BCC*)
-    (*L0+0*) L0 := pc; Put1(Cmp, RH, x.r, 0);  (*higher bound, fixed up in CaseTail*)
-    (*L0+1*) Put3(BC, GE, 0);  (*branch to else, fixed up in CaseTail*)
-    (*L0+2*) Put1(Add, x.r, x.r, 0);  (*nof words between L0+4 and jump table, fixed up in CaseTail*)
-    (*L0+3*) Put1(Lsl, x.r, x.r, 2);
-    (*L0+4*) Put3(BL, 7, 0);  (*LNK := PC+1*)
-    Put0(Add, LNK, LNK, x.r); Put3(BR, 7, LNK); DEC(RH)
+  PROCEDURE CaseHead*(VAR x: Item; VAR L0, L1: LONGINT);
+  BEGIN load(x);  (*value of case expression*)
+    L0 := pc; Put1(Cmp, RH, x.r, 0);  (*higher bound, fixed up in CaseTail*)
+    Trap(10, 1);  (*BCC*)
+    L1 := pc; Put1(Add, RH, x.r, 0); (*address of jump table, fixed up in CaseTail*)
+    Put3(BL, 7, 0);  (*LNK := PC+1*)
+    Put1(Mov, RH-1, 0, pc);
+    Put0(Sub, RH, RH, RH-1);
+    Put1(Lsl, RH, RH, 2);
+    Put0(Add, LNK, LNK, RH); Put3(BR, 7, LNK); DEC(RH)
   END CaseHead;
 
   PROCEDURE CaseTail*(L0, L1: LONGINT; n: INTEGER; VAR tab: ARRAY OF LabelRange);
     VAR i, j, L2: INTEGER;
-  BEGIN
-    IF n > 0 THEN fix1(L0, tab[n-1].high + 1) END ; (*higher bound*)
-    fix1(L0+2, pc-L0-5); (*offset to jump table*)
-    j := 0; L2 := 0;
+  BEGIN fix1(L0, tab[n-1].high + 1); (*higher bound*)
+    fix1(L1, pc); (*address of jump table*)
+    j := 0; L0 := 0;
     FOR i := 0 TO n-1 DO (*construct jump table*)
-      WHILE j < tab[i].low DO
-        IF L1 > 0 THEN (*else*) BJump(L1) ELSE FJump(L2) END ;
-        INC(j)
-      END ;
+      WHILE j < tab[i].low DO FJump(L0); INC(j) END ;
       WHILE j <= tab[i].high DO BJump(tab[i].label); INC(j) END
     END ;
-    IF L1 > 0 THEN (*else*) fix(L0+1, L1-L0-2) ELSE fix(L0+1, pc-L0-2) END ;
-    FixLink(L2)
+    FixLink(L0)
   END CaseTail;
 
   (* In-line code procedures *)

@@ -162,7 +162,7 @@ Import the files to your Oberon system. If you use an emulator, click on the *PC
 See the file *Test.Mod* in the *Sources* directory of this repository.
 
 ------------------------------------------------------
-**DIFFERENCES OF THE DEFAULT VERSION TO THE OFFICIAL OBERON-07 COMPILER**
+**DIFFERENCES TO THE OFFICIAL OBERON-07 COMPILER**
 
 **$ diff -u FPGAOberon2013/ORG.Mod OberonNumericCaseStatement/ORG.Mod**
 
@@ -364,7 +364,7 @@ See the file *Test.Mod* in the *Sources* directory of this repository.
 
 ```diff
 --- FPGAOberon2013/ORP.Mod	2021-05-24 10:06:15
-+++ Oberon-numeric-case-statement/Sources/FPGAOberon2013/ORP.Mod	2024-12-23 20:53:02
++++ Oberon-numeric-case-statement/Sources/FPGAOberon2013/ORP.Mod	2024-12-23 23:16:11
 @@ -1,10 +1,12 @@
 -MODULE ORP; (*N. Wirth 1.7.97 / 8.3.2020  Oberon compiler for RISC in Oberon-07*)
 +MODULE ORP; (*N. Wirth 1.7.97 / 8.3.2020  Oberon compiler for RISC in Oberon-07 / AP 13.12.24*)
@@ -514,7 +514,7 @@ See the file *Test.Mod* in the *Sources* directory of this repository.
 -        ELSE ORS.Mark("ident expected")
 +        ORS.Get(sym); x.obj := NIL; expression(x);
 +        IF x.type.form IN {ORB.Int, ORB.Byte, ORB.Char} THEN NumericCasePart(x)
-+        ELSIF (x.obj # NIL) & (x.obj.type # NIL) &
++        ELSIF (x.obj # NIL) &
 +          ((x.type.form = ORB.Pointer) & (x.type.base.form = ORB.Record) OR
 +          (x.type.form = ORB.Record) & (x.mode = ORB.Par)) THEN TypeCasePart(x.obj)
 +        ELSE ORS.Mark("invalid case variable"); SkipCase
